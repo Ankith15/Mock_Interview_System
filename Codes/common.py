@@ -1,13 +1,87 @@
-import os
+# This is the common file for functions
+import speech_recognition as sr
+import pyttsx3
 import time
-import pandas as pd
-from bs4 import BeautifulSoup
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.edge.service import Service
+
+class Text2Speech:
+    engine: pyttsx3.Engine
+
+    def __init__(self,voice,rate:int,volume:float):
+        self.engine = pyttsx3.init()
+        if voice:
+            self.engine.setProperty("voice",voice)
+            self.engine.setProperty('rate',rate)
+            self.engine.setProperty('volume',volume)
+
+    def list_available_voices(self):
+        voices: list =[self.engine.getProperty('voices')]
+
+        for i, voice in enumerate(voices[0]):
+            print(f"{i+1} {voice.name} {voice.age}: {voice.languages} ({voice.gender}) [{voice.id}]")
+
+    def text_to_speech(self, text:str,save:bool = False,file_name = "output.mp3"):
+        
+        self.engine.say(text)
+        print('I am speaking')
+        
+        if save:
+            self.engine.save_to_file(text,file_name)
+
+        self.engine.runAndWait()
+
+
+class Speech2Text:
+    def __init__(self):
+        self.recognizer = sr.Recognizer()
+        self.mic= sr.Microphone()
+
+    def live_speech_to_text(self):
+        print("Start Answering the question")
+        with self.mic as source:
+            self.recognizer.adjust_for_ambient_noise(source)
+            self.audio_data=[]
+            last_speech_time = time.time()
+            self.silence_threshold = 3
+
+            while True:
+                try:
+                    self.audio = self.recognizer.listen(source,timeout = self.silence_threshold,phrase_time_limit = 10)
+                    self.audio_data.append(self.audio)
+                    last_speech_time = time.time()
+                
+                except sr.WaitTimeoutError:
+                    print("Your answer has been recorded")
+                    break
+                except Exception as e:
+                    print(f"Error for the given is {e}")
+                    break
+
+        if self.audio_data:
+            full_audio = sr.AudioData(b"".join([a.get_raw_data() for a in self.audio_data]),
+            sample_rate = self.audio_data[0].sample_rate,
+            sample_width = self.audio_data[0].sample_width)
+
+            try:
+                text = self.recognizer.recognize_google(full_audio)
+                print("Transcription:",text)
+                return text
+
+            except sr.UnknownValueError:
+                print("Could not understand the audio.")
+
+            except sr.RequestError:
+                print("Error connecting to Google API")
+
+        else:
+            print("No speech recorded.")
+
+#Scrapping Naukri
 
 class JobAgent:
     def __init__(self, job_role, location, experience, freshness):
@@ -57,7 +131,6 @@ class JobAgent:
         print("Navigating to:", url)
         
         self.driver.get(url)
-        jobi = []
         wait = WebDriverWait(self.driver, 15)
 
         col = WebDriverWait(self.driver, 10).until(EC.presence_of_element_located((By.ID, "listContainer")))
@@ -87,24 +160,4 @@ class JobAgent:
             skills.append(temp[i].text.split("\n")[-3])
             posted.append(temp[i].text.split("\n")[-2])
 
-            
-        
-        
-        print(jobs)
-        print(company)
-        print(experience)
-        print(salary)
-        print(location)
-        print(skills)
-        print(posted)
-
-       
-
-        # Close the browser
         self.driver.quit()
-
-
-if __name__ == "__main__":
-    agent = JobAgent("Data Analyst", "Bangalore", 2, 7)
-    agent.url_naukri()  # Fetch the search URL
-    agent.scrapper()    # Scrape jobs
